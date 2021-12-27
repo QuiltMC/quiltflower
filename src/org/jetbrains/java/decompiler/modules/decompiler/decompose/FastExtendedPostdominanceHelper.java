@@ -3,8 +3,8 @@ package org.jetbrains.java.decompiler.modules.decompiler.decompose;
 
 import org.jetbrains.java.decompiler.modules.decompiler.StatEdge;
 import org.jetbrains.java.decompiler.modules.decompiler.stats.Statement;
+import org.jetbrains.java.decompiler.util.FastFixedSet;
 import org.jetbrains.java.decompiler.util.FastFixedSetFactory;
-import org.jetbrains.java.decompiler.util.FastFixedSetFactory.FastFixedSet;
 import org.jetbrains.java.decompiler.util.InterpreterUtil;
 
 import java.util.*;
@@ -30,7 +30,7 @@ public class FastExtendedPostdominanceHelper {
     for (Statement st : statement.getStats()) {
       set.add(st.id);
     }
-    this.factory = new FastFixedSetFactory<>(set);
+    this.factory = FastFixedSetFactory.create(set);
 
     lstReversePostOrderList = statement.getReversePostOrderList();
 
@@ -54,7 +54,7 @@ public class FastExtendedPostdominanceHelper {
     Set<Entry<Integer, FastFixedSet<Integer>>> entries = mapExtPostdominators.entrySet();
     HashMap<Integer, Set<Integer>> res = new HashMap<>(entries.size());
     for (Entry<Integer, FastFixedSet<Integer>> entry : entries) {
-      List<Integer> lst = new ArrayList<>(entry.getValue().toPlainSet());
+      List<Integer> lst = new ArrayList<>(entry.getValue());
       Collections.sort(lst); // Order Matters!
       res.put(entry.getKey(), new LinkedHashSet<>(lst));
     }
@@ -93,12 +93,12 @@ public class FastExtendedPostdominanceHelper {
           path.add(stat.id);
         }
 
-        if (path.contains(setPostdoms)) {
+        if (path.containsAll(setPostdoms)) {
           continue;
         }
 
-        if(!engine.isDominator(stat.id, head)) {
-          setPostdoms.complement(path);
+        if (!engine.isDominator(stat.id, head)) {
+          setPostdoms.removeAll(path);
           continue;
         }
 
@@ -106,10 +106,10 @@ public class FastExtendedPostdominanceHelper {
 
           Statement edge_destination = edge.getDestination();
 
-          if(!setVisited.contains(edge_destination)) {
+          if (!setVisited.contains(edge_destination)) {
 
             stack.add(edge_destination);
-            stackPath.add(path.getCopy());
+            stackPath.add(path.clone());
 
             setVisited.add(edge_destination);
           }
@@ -159,7 +159,7 @@ public class FastExtendedPostdominanceHelper {
 
       for (int id : setReachability) {
 
-        FastFixedSet<Integer> setReachabilityCopy = setReachability.getCopy();
+        FastFixedSet<Integer> setReachabilityCopy = setReachability.clone();
 
         FastFixedSet<Integer> setIntersection = factory.spawnEmptySet();
         boolean isIntersectionInitialized = false;
@@ -167,25 +167,23 @@ public class FastExtendedPostdominanceHelper {
         for (FastFixedSet<Integer> predset : lstPredSets) {
           if (predset.contains(id)) {
             if (!isIntersectionInitialized) {
-              setIntersection.union(predset);
+              setIntersection.addAll(predset);
               isIntersectionInitialized = true;
-            }
-            else {
-              setIntersection.intersection(predset);
+            } else {
+              setIntersection.retainAll(predset);
             }
           }
         }
 
         if (nodeid != id) {
           setIntersection.add(nodeid);
-        }
-        else {
+        } else {
           setIntersection.remove(nodeid);
         }
 
-        setReachabilityCopy.complement(setIntersection);
+        setReachabilityCopy.removeAll(setIntersection);
 
-        mapExtPostdominators.get(id).complement(setReachabilityCopy);
+        mapExtPostdominators.get(id).removeAll(setReachabilityCopy);
       }
 
       return false;
@@ -198,7 +196,7 @@ public class FastExtendedPostdominanceHelper {
 
     for (Statement stat : statement.getStats()) {
       if (stat.getPredecessorEdges(Statement.STATEDGE_DIRECT_ALL).isEmpty() &&
-          !stat.getPredecessorEdges(StatEdge.TYPE_EXCEPTION).isEmpty()) { // exception handler
+        !stat.getPredecessorEdges(StatEdge.TYPE_EXCEPTION).isEmpty()) { // exception handler
         setHandlers.add(stat.id);
         handlerfound = true;
       }
@@ -206,7 +204,7 @@ public class FastExtendedPostdominanceHelper {
 
     if (handlerfound) {
       for (FastFixedSet<Integer> set : mapExtPostdominators.values()) {
-        set.complement(setHandlers);
+        set.removeAll(setHandlers);
       }
     }
   }
@@ -275,7 +273,7 @@ public class FastExtendedPostdominanceHelper {
             }
 
             if (setPred != null) {
-              set.union(setPred);
+              set.addAll(setPred);
             }
           }
         }

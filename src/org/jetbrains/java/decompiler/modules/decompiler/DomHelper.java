@@ -11,11 +11,7 @@ import org.jetbrains.java.decompiler.modules.decompiler.decompose.FastExtendedPo
 import org.jetbrains.java.decompiler.modules.decompiler.deobfuscator.IrreducibleCFGDeobfuscator;
 import org.jetbrains.java.decompiler.modules.decompiler.stats.*;
 import org.jetbrains.java.decompiler.struct.StructMethod;
-import org.jetbrains.java.decompiler.util.DotExporter;
-import org.jetbrains.java.decompiler.util.FastFixedSetFactory;
-import org.jetbrains.java.decompiler.util.FastFixedSetFactory.FastFixedSet;
-import org.jetbrains.java.decompiler.util.InterpreterUtil;
-import org.jetbrains.java.decompiler.util.VBStyleCollection;
+import org.jetbrains.java.decompiler.util.*;
 
 import java.util.*;
 
@@ -112,7 +108,7 @@ public final class DomHelper {
 
     List<Statement> lstStats = container.getPostReversePostOrderList(StrongConnectivityHelper.getExitReps(components));
 
-    FastFixedSetFactory<Statement> factory = new FastFixedSetFactory<>(lstStats);
+    FastFixedSetFactory<Statement> factory = FastFixedSetFactory.create(lstStats);
 
     FastFixedSet<Statement> setFlagNodes = factory.spawnEmptySet();
     setFlagNodes.setAllElements();
@@ -128,7 +124,7 @@ public final class DomHelper {
         tmpSet.addAll(lst);
       }
       else {
-        tmpSet = initSet.getCopy();
+        tmpSet = initSet.clone();
       }
 
       for (Statement stat : lst) {
@@ -154,10 +150,10 @@ public final class DomHelper {
           FastFixedSet<Statement> succlst = lists.get(succ);
 
           if (j == 0) {
-            domsSuccs.union(succlst);
+            domsSuccs.addAll(succlst);
           }
           else {
-            domsSuccs.intersection(succlst);
+            domsSuccs.retainAll(succlst);
           }
         }
 
