@@ -21,6 +21,18 @@ public class TestPatternMatchingInteger {
         return 0;
     }
 
+    public int testMulti2(Object a, Object b) {
+        int result = 0;
+        if (a instanceof Integer ai) {
+            result += ai;
+        }
+        if (b instanceof Integer bi) {
+            result += bi;
+        }
+
+        return result;
+    }
+
     public int testMultiDifferent(Object a, Object b) {
         if (a instanceof Integer i && b instanceof String s) {
             return i + s.length();

@@ -31,6 +31,7 @@ public class StackVarsProcessor {
     Set<Integer> setReorderedIfs = new HashSet<>();
     SSAUConstructorSparseEx ssau = null;
 
+    boolean firstWasDud = false;
     while (true) {
       boolean found = false;
       boolean first = ssau == null;
@@ -44,6 +45,10 @@ public class StackVarsProcessor {
 
       setVersionsToNull(root);
 
+      if(firstWasDud && !found) {
+        break;
+      }
+
       SequenceHelper.condenseSequences(root);
 
       ssau = new SSAUConstructorSparseEx();
@@ -53,14 +58,18 @@ public class StackVarsProcessor {
         setEffectivelyFinalVars(root, ssau, new HashMap<>());
       }
 
-      if (iterateStatements(root, ssau)) {
+      if (iterateStatements(root, ssau, false)) {
         found = true;
       }
 
       setVersionsToNull(root);
 
       if (!found) {
-        break;
+        if(first) {
+          firstWasDud = true;
+        } else {
+          break;
+        }
       }
     }
 
@@ -68,12 +77,23 @@ public class StackVarsProcessor {
     ssau = new SSAUConstructorSparseEx();
     ssau.splitVariables(root, mt);
 
-    iterateStatements(root, ssau);
+    iterateStatements(root, ssau, false);
 
     setVersionsToNull(root);
   }
 
-  private static void setVersionsToNull(Statement stat) {
+  public boolean inlineVars(RootStatement root, StructMethod mt) {
+    // remove unused assignments
+    SSAUConstructorSparseEx ssau = new SSAUConstructorSparseEx();
+    ssau.splitVariables(root, mt);
+
+    final boolean b = iterateStatements(root, ssau, true);
+    SequenceHelper.condenseSequences(root);
+    setVersionsToNull(root);
+    return b;
+  }
+
+  public static void setVersionsToNull(Statement stat) {
     if (stat.getExprents() == null) {
       for (Object obj : stat.getSequentialObjects()) {
         if (obj instanceof Statement) {
@@ -102,7 +122,7 @@ public class StackVarsProcessor {
     }
   }
 
-  private boolean iterateStatements(RootStatement root, SSAUConstructorSparseEx ssa) {
+  private boolean iterateStatements(RootStatement root, SSAUConstructorSparseEx ssa, boolean onlyStackVars) {
     FlattenStatementsHelper flatthelper = new FlattenStatementsHelper();
     DirectGraph dgraph = flatthelper.buildDirectGraph(root);
 
@@ -168,7 +188,7 @@ public class StackVarsProcessor {
             boolean simplifyAcrossStack = stackStage == 1;
 
             // {newIndex, changed}
-            int[] ret = iterateExprent(lst, index, next, mapVarValues, ssa, simplifyAcrossStack);
+            int[] ret = iterateExprent(lst, index, next, mapVarValues, ssa, simplifyAcrossStack, onlyStackVars);
 
             // If index is specified, set to that
             if (ret[0] >= 0) {
@@ -273,7 +293,8 @@ public class StackVarsProcessor {
                                Exprent next,
                                Map<VarVersionPair, Exprent> mapVarValues,
                                SSAUConstructorSparseEx ssau,
-                               boolean simplifyAcrossStack) {
+                               boolean simplifyAcrossStack,
+                               boolean onlyStackVars) {
     Exprent exprent = lstExprents.get(index);
 
     int changed = 0;
@@ -317,6 +338,11 @@ public class StackVarsProcessor {
 
     // No variable assignment found or variable assignment is to an effectively final variable, stop
     if (left == null || left.isEffectivelyFinal()) {
+      return new int[]{-1, changed};
+    }
+
+    // If we can only replace stack variables, and the variable is not a stack variable, stop
+    if (onlyStackVars && !left.isStack()) {
       return new int[]{-1, changed};
     }
 
@@ -697,6 +723,7 @@ public class StackVarsProcessor {
     return new Object[]{null, changed, false};
   }
 
+  // Note: most of this code is duplicated in IfPatternMatchProcessor
   private static boolean getUsedVersions(SSAUConstructorSparseEx ssa, VarVersionPair var, List<? super VarVersionNode> res) {
     VarVersionsGraph ssu = ssa.getSsuVersions();
     VarVersionNode node = ssu.nodes.getWithKey(var);

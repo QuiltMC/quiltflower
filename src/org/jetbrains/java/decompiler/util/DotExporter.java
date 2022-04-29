@@ -17,6 +17,7 @@ import org.jetbrains.java.decompiler.modules.decompiler.sforms.DirectNode;
 import org.jetbrains.java.decompiler.modules.decompiler.stats.*;
 import org.jetbrains.java.decompiler.modules.decompiler.vars.VarVersionEdge;
 import org.jetbrains.java.decompiler.modules.decompiler.vars.VarVersionNode;
+import org.jetbrains.java.decompiler.modules.decompiler.vars.VarVersionPair;
 import org.jetbrains.java.decompiler.modules.decompiler.vars.VarVersionsGraph;
 import org.jetbrains.java.decompiler.struct.StructMethod;
 import org.jetbrains.java.decompiler.util.FastSparseSetFactory.FastSparseSet;
@@ -426,7 +427,7 @@ public class DotExporter {
 
     return builder.toString();
   }
-  private static String varsToDot(VarVersionsGraph graph) {
+  private static String varsToDot(VarVersionsGraph graph, HashMap<VarVersionPair, VarVersionPair> varAssignmentMap) {
 
     StringBuffer buffer = new StringBuffer();
 
@@ -442,6 +443,12 @@ public class DotExporter {
         VarVersionNode dest = edge.dest;
         buffer.append((block.var*1000+block.version)+"->"+(dest.var*1000+dest.version)+(edge.type==VarVersionEdge.EDGE_PHANTOM?" [style=dotted]":"")+";\r\n");
       }
+    }
+
+    for (Entry<VarVersionPair, VarVersionPair> entry : varAssignmentMap.entrySet()) {
+      VarVersionPair to = entry.getKey();
+      VarVersionPair from = entry.getValue();
+      buffer.append((from.var*1000+from.version)+"->"+(to.var*1000+to.version)+" [color=green];\r\n");
     }
 
     buffer.append("}");
@@ -595,12 +602,12 @@ public class DotExporter {
     }
   }
 
-  public static void toDotFile(VarVersionsGraph graph, StructMethod mt, String suffix) {
+  public static void toDotFile(VarVersionsGraph graph, StructMethod mt, String suffix, HashMap<VarVersionPair, VarVersionPair> varAssignmentMap) {
     if (!DUMP_DOTS)
       return;
     try{
       BufferedOutputStream out = new BufferedOutputStream(new FileOutputStream(getFile(DOTS_FOLDER, mt, suffix)));
-      out.write(varsToDot(graph).getBytes());
+      out.write(varsToDot(graph, varAssignmentMap).getBytes());
       out.close();
     } catch (Exception e) {
       e.printStackTrace();

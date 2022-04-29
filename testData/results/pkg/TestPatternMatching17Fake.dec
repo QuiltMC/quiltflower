@@ -1,0 +1,285 @@
+package pkg;
+
+public class TestPatternMatching17Fake {
+   public void test1(Object obj) {
+      if (obj instanceof Integer i) {// 5 6
+         System.out.println(1 + i);// 7
+      }
+
+      if (obj instanceof Integer i) {// 10
+         System.out.println(1 + i);// 11
+      }
+
+   }// 13
+
+   public void test1A(Object obj) {
+      if (obj instanceof Integer i) {// 16 17
+         System.out.println(1 + i);// 18
+      }
+
+   }// 20
+
+   public void test1B(Object obj) {
+      if (obj instanceof Integer i) {// 23
+         System.out.println(1 + i);// 24
+      }
+
+   }// 26
+
+   public void test2(Object obj) {
+      if (obj instanceof Integer) {// 29
+         System.out.println(1 + (Integer)obj);// 30
+      }
+
+      if (obj instanceof Integer i) {// 33
+         System.out.println(1 + i);// 34
+      }
+
+   }// 36
+
+   public void testClash(Object obj) {
+      if (obj instanceof String s) {// 39
+         System.out.println(s.length());// 40 42 43 44
+      } else {
+         int s = 0;
+         System.out.println(s);
+      }
+
+   }// 46
+
+   public void test3(Object obj) {
+      Integer i = null;// 49
+      if (obj instanceof Integer) {// 50
+         i = (Integer)obj;// 51
+         if (i > 4) {// 53
+            i = i + 3;// 54
+         }
+      }
+
+      if (i != null) {// 58
+         System.out.println(i);// 59
+      }
+
+   }// 61
+}
+
+class 'pkg/TestPatternMatching17Fake' {
+   method 'test1 (Ljava/lang/Object;)V' {
+      0      4
+      1      4
+      2      4
+      3      4
+      4      4
+      b      4
+      c      5
+      d      5
+      e      5
+      f      5
+      10      5
+      11      5
+      12      5
+      13      5
+      14      5
+      15      5
+      18      8
+      19      8
+      1a      8
+      1b      8
+      1c      8
+      23      8
+      24      9
+      25      9
+      26      9
+      27      9
+      28      9
+      29      9
+      2a      9
+      2b      9
+      2c      9
+      2d      9
+      30      12
+   }
+
+   method 'test1A (Ljava/lang/Object;)V' {
+      0      15
+      1      15
+      2      15
+      3      15
+      4      15
+      b      15
+      c      16
+      d      16
+      e      16
+      f      16
+      10      16
+      11      16
+      12      16
+      13      16
+      14      16
+      15      16
+      18      19
+   }
+
+   method 'test1B (Ljava/lang/Object;)V' {
+      0      22
+      1      22
+      2      22
+      3      22
+      4      22
+      b      22
+      c      23
+      d      23
+      e      23
+      f      23
+      10      23
+      11      23
+      12      23
+      13      23
+      14      23
+      15      23
+      18      26
+   }
+
+   method 'test2 (Ljava/lang/Object;)V' {
+      0      29
+      1      29
+      2      29
+      3      29
+      4      29
+      7      30
+      8      30
+      9      30
+      a      30
+      b      30
+      c      30
+      d      30
+      e      30
+      f      30
+      10      30
+      11      30
+      12      30
+      13      30
+      16      33
+      17      33
+      18      33
+      19      33
+      1a      33
+      21      33
+      22      34
+      23      34
+      24      34
+      25      34
+      26      34
+      27      34
+      28      34
+      29      34
+      2a      34
+      2b      34
+      2e      37
+   }
+
+   method 'testClash (Ljava/lang/Object;)V' {
+      0      40
+      1      40
+      2      40
+      3      40
+      4      40
+      b      40
+      c      41
+      d      41
+      e      41
+      f      41
+      10      41
+      11      41
+      12      41
+      13      41
+      14      41
+      15      41
+      16      41
+      17      41
+      18      41
+      19      41
+      1a      41
+      1b      41
+      1c      41
+      1d      41
+      1e      41
+      1f      41
+      20      41
+      21      41
+      25      47
+   }
+
+   method 'test3 (Ljava/lang/Object;)V' {
+      0      50
+      1      50
+      2      51
+      3      51
+      4      51
+      5      51
+      6      51
+      9      52
+      a      52
+      b      52
+      c      52
+      d      52
+      e      53
+      f      53
+      10      53
+      11      53
+      12      53
+      13      53
+      16      54
+      17      54
+      18      54
+      19      54
+      1a      54
+      1b      54
+      1c      54
+      1d      54
+      1e      54
+      1f      54
+      20      58
+      21      58
+      24      59
+      25      59
+      26      59
+      27      59
+      28      59
+      2b      62
+   }
+}
+
+Lines mapping:
+5 <-> 5
+6 <-> 5
+7 <-> 6
+10 <-> 9
+11 <-> 10
+13 <-> 13
+16 <-> 16
+17 <-> 16
+18 <-> 17
+20 <-> 20
+23 <-> 23
+24 <-> 24
+26 <-> 27
+29 <-> 30
+30 <-> 31
+33 <-> 34
+34 <-> 35
+36 <-> 38
+39 <-> 41
+40 <-> 42
+42 <-> 42
+43 <-> 42
+44 <-> 42
+46 <-> 48
+49 <-> 51
+50 <-> 52
+51 <-> 53
+53 <-> 54
+54 <-> 55
+58 <-> 59
+59 <-> 60
+61 <-> 63

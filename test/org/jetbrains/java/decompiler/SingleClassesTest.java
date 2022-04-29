@@ -500,6 +500,8 @@ public class SingleClassesTest extends SingleClassesTestBase {
     register(JAVA_8, "TestTryReturn");
     // TODO: ternaries inside while conditions shouldn't be put in if inside while
     register(JAVA_8, "TestWhileConditionTernary");
+
+    register(JAVA_17, "TestDefiniteAssignment");
   }
 
   private void registerEntireClassPath() {
@@ -567,11 +569,20 @@ public class SingleClassesTest extends SingleClassesTestBase {
     // TODO: test against generics?
     register(JAVA_16, "TestPatternMatching");
     register(JAVA_16, "TestPatternMatchingFake");
-    register(JAVA_17, "TestPatternMatchingInteger");
+    register(JAVA_16, "TestPatternMatchingFakeLoops");
+    register(JAVA_16, "TestPatternMatchingFakeLoopsInverted");
+    register(JAVA_16, "TestPatternMatchingFakeNew");
     register(JAVA_16, "TestPatternMatchingMerge");
     // TODO: local variables aren't merged properly, bring out of nodebug when they are
     register(JAVA_16_NODEBUG, "TestPatternMatchingAssign");
     register(JAVA_16, "TestPatternMatchingLocalCapture");
+
+    register(JAVA_17, "TestPatternMatching17");
+    register(JAVA_17, "TestPatternMatching17Fake");
+    register(JAVA_17, "TestPatternMatching17FakeLoops");
+    register(JAVA_17, "TestPatternMatching17FakeLoopsInverted");
+    register(JAVA_17, "TestPatternMatching17FakeNew");
+    register(JAVA_17, "TestPatternMatchingInteger");
   }
 
   private void registerTernaryConstantSimplification() {

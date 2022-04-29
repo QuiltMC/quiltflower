@@ -1,6 +1,6 @@
 package pkg;
 
-public class TestPatternMatching {
+public class TestPatternMatching17 {
     public void testSimple(Object obj) {
         if (obj instanceof String str) {
             System.out.println(str.length());
@@ -75,17 +75,17 @@ public class TestPatternMatching {
         }
     }
 
-    public void testSimpleReturn(Object obj) {
-        if (obj instanceof String str) {
-            if (str.length() > 5) {
-                return;
-            }
-        }
-
-        System.out.println("test");
+  public void testSimpleReturn(Object obj) {
+    if (obj instanceof String str) {
+      if (str.length() > 5) {
+        return;
+      }
     }
 
-    public void testMessyLVT(Object obj) {
+    System.out.println("test");
+  }
+
+  public void testMessyLVT(Object obj) {
         {
             String a = "a";
             String b = "b";

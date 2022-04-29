@@ -174,6 +174,36 @@ public class MethodProcessorRunnable implements Runnable {
 
     StackVarsProcessor stackProc = new StackVarsProcessor();
 
+    if (DecompilerContext.getOption(IFernflowerPreferences.PATTERN_MATCHING)) {
+      if (cl.getVersion().hasIfPatternMatching()) {
+        // this breaks java 1.4 class matcher,
+        // ~ prevents the removal of unused local variables and
+        // ~ switches some if statements.
+        // - this does break nested assignments to arrays for some reason.
+        //   But as I am working on a stack var refactor, I'm gonna ignore it for now.
+        //   and see if it fixes itself once I merge
+        // + fixes TestNestedTernaryAssign
+        // + helps with removing unused stack variables
+        // By putting this here we only affect 16+ tests
+
+        stackProc.inlineVars(root, mt);
+        decompileRecord.add("InlineVars", root);
+
+        if (NormalizeIfHeadHelper.normalizeIfHeads(root, varProc)) {
+          decompileRecord.add("NormalizeIfHead", root);
+        }
+
+        if (IfPatternMatchProcessor.matchInstanceof(root, mt)) {
+          decompileRecord.add("MatchIfInstanceof", root);
+          SequenceHelper.condenseSequences(root);
+          decompileRecord.add("MatchIfInstanceof_CondenseSequences", root);
+        }
+      }
+    }
+
+    // IfHelper.mergeAllIfs(root);
+    // decompileRecord.add("Merge_Ifs", root);
+
     // Process and simplify variables on the stack
     int stackVarsProcessed = 0;
     do {
@@ -257,15 +287,6 @@ public class MethodProcessorRunnable implements Runnable {
 
       LabelHelper.identifyLabels(root);
       decompileRecord.add("IdentifyLabels", root);
-
-      if (DecompilerContext.getOption(IFernflowerPreferences.PATTERN_MATCHING)) {
-        if (cl.getVersion().hasIfPatternMatching()) {
-          if (IfPatternMatchProcessor.matchInstanceof(root)) {
-            decompileRecord.add("MatchIfInstanceof", root);
-            continue;
-          }
-        }
-      }
 
       if (SwitchExpressionHelper.hasSwitchExpressions(root)) {
         if (SwitchExpressionHelper.processAllSwitchExpressions(root)) {

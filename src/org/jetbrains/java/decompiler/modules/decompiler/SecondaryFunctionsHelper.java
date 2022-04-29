@@ -105,15 +105,16 @@ public final class SecondaryFunctionsHelper {
         else if (obj instanceof Exprent) {
           Exprent retexpr = identifySecondaryFunctions((Exprent)obj, true, varProc);
           if (retexpr != null) {
-            if (stat.getExprents() == null) {
-              // only head expressions can be replaced!
-              stat.replaceExprent((Exprent)obj, retexpr);
-            }
-            else {
-              stat.getExprents().set(i, retexpr);
+            if(retexpr != obj) {
+              if (stat.getExprents() == null) {
+                // only head expressions can be replaced!
+                stat.replaceExprent((Exprent) obj, retexpr);
+              } else {
+                stat.getExprents().set(i, retexpr);
+              }
+              replaced = true;
             }
             ret = true;
-            replaced = true;
             break;
           }
         }
@@ -194,14 +195,18 @@ public final class SecondaryFunctionsHelper {
 
 
     boolean replaced = true;
+    boolean ret = false;
     while (replaced) {
       replaced = false;
 
       for (Exprent expr : exprent.getAllExprents()) {
         Exprent retexpr = identifySecondaryFunctions(expr, false, varProc);
         if (retexpr != null) {
-          exprent.replaceExprent(expr, retexpr);
-          replaced = true;
+          if(retexpr != expr) {
+            exprent.replaceExprent(expr, retexpr);
+            replaced = true;
+          }
+          ret = true;
           break;
         }
       }
@@ -410,7 +415,12 @@ public final class SecondaryFunctionsHelper {
         }
     }
 
-    return null;
+    if(ret){
+      // return exprent to show that we have a nested change
+      return exprent;
+    } else {
+      return null;
+    }
   }
 
   public static Exprent propagateBoolNot(Exprent exprent) {

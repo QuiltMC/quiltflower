@@ -2,10 +2,7 @@
 package org.jetbrains.java.decompiler.modules.decompiler.sforms;
 
 import org.jetbrains.java.decompiler.code.CodeConstants;
-import org.jetbrains.java.decompiler.modules.decompiler.exps.AssignmentExprent;
-import org.jetbrains.java.decompiler.modules.decompiler.exps.Exprent;
-import org.jetbrains.java.decompiler.modules.decompiler.exps.FunctionExprent;
-import org.jetbrains.java.decompiler.modules.decompiler.exps.VarExprent;
+import org.jetbrains.java.decompiler.modules.decompiler.exps.*;
 import org.jetbrains.java.decompiler.modules.decompiler.sforms.FlattenStatementsHelper.FinallyPathWrapper;
 import org.jetbrains.java.decompiler.modules.decompiler.stats.CatchAllStatement;
 import org.jetbrains.java.decompiler.modules.decompiler.stats.CatchStatement;
@@ -25,6 +22,8 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.ArrayList;
 import java.util.Map.Entry;
+
+import static org.jetbrains.java.decompiler.modules.decompiler.sforms.VarMapHolder.mergeMaps;
 
 public class SSAConstructorSparseEx {
 
@@ -87,27 +86,22 @@ public class SSAConstructorSparseEx {
       mergeInVarMaps(node, dgraph);
 
       SFormsFastMapDirect varmap = inVarVersions.get(node.id);
-      varmap = new SFormsFastMapDirect(varmap);
-
-      SFormsFastMapDirect[] varmaparr = new SFormsFastMapDirect[]{varmap, null};
+      VarMapHolder varmaps = VarMapHolder.ofNormal(varmap);
 
       if (node.exprents != null) {
         for (Exprent expr : node.exprents) {
-          processExprent(node, expr, varmaparr);
+          varmaps.toNormal(); // make sure we are in normal form
+          this.processExprent(node, expr, varmaps);
         }
       }
 
-      if (varmaparr[1] == null) {
-        varmaparr[1] = varmaparr[0];
-      }
-
-      boolean this_updated = !mapsEqual(varmaparr[0], outVarVersions.get(node.id))
-                             || (outNegVarVersions.containsKey(node.id) && !mapsEqual(varmaparr[1], outNegVarVersions.get(node.id)));
+      boolean this_updated = !mapsEqual(varmaps.getIfTrue(), outVarVersions.get(node.id))
+                             || (outNegVarVersions.containsKey(node.id) && !mapsEqual(varmaps.getIfFalse(), outNegVarVersions.get(node.id)));
 
       if (this_updated) {
-        outVarVersions.put(node.id, varmaparr[0]);
+        outVarVersions.put(node.id, varmaps.getIfTrue());
         if (dgraph.mapNegIfBranch.containsKey(node.id)) {
-          outNegVarVersions.put(node.id, varmaparr[1]);
+          outNegVarVersions.put(node.id, varmaps.getIfFalse());
         }
 
         // Don't update the node if it wasn't discovered normally, as that can lead to infinite recursion due to bad ordering!
@@ -120,16 +114,23 @@ public class SSAConstructorSparseEx {
     }
   }
 
-  private void processExprent(DirectNode node, Exprent expr, SFormsFastMapDirect[] varmaparr) {
+  private void processExprent(DirectNode node, Exprent expr, VarMapHolder varmaps) {
 
     if (expr == null) {
       return;
     }
 
+    assert varmaps.isNormal();
+
     VarExprent varassign = null;
-    boolean finished = false;
+    boolean finished = false, skipRecursion = false;
 
     switch (expr.type) {
+      case Exprent.EXPRENT_IF: {
+        IfExprent ifexpr = (IfExprent)expr;
+        this.processExprent(node, ifexpr.getCondition(), varmaps);
+        return;
+      }
       case Exprent.EXPRENT_ASSIGNMENT:
         AssignmentExprent assexpr = (AssignmentExprent)expr;
         if (assexpr.getCondType() == AssignmentExprent.CONDITION_NONE) {
@@ -142,63 +143,100 @@ public class SSAConstructorSparseEx {
       case Exprent.EXPRENT_FUNCTION:
         FunctionExprent func = (FunctionExprent)expr;
         switch (func.getFuncType()) {
-          case FunctionExprent.FUNCTION_IIF:
-            processExprent(node, func.getLstOperands().get(0), varmaparr);
+          case FunctionExprent.FUNCTION_IIF: {
+            // a ? b : c
+            this.processExprent(node, func.getLstOperands().get(0), varmaps);
 
-            SFormsFastMapDirect varmapFalse;
-            if (varmaparr[1] == null) {
-              varmapFalse = new SFormsFastMapDirect(varmaparr[0]);
+            VarMapHolder bVarMaps = VarMapHolder.ofNormal(varmaps.getIfTrue());
+            this.processExprent(node, func.getLstOperands().get(1), bVarMaps);
+
+            VarMapHolder cVarMaps = VarMapHolder.ofNormal(varmaps.getIfFalse());
+            this.processExprent(node, func.getLstOperands().get(2), cVarMaps);
+
+            if (bVarMaps.isNormal() && cVarMaps.isNormal()) {
+              varmaps.setNormal(mergeMaps(bVarMaps.getNormal(), cVarMaps.getNormal()));
+            } else {
+              bVarMaps.makeFullyMutable();
+              bVarMaps.mergeIfTrue(cVarMaps.getIfTrue());
+              bVarMaps.mergeIfFalse(cVarMaps.getIfFalse());
+
+              varmaps.set(bVarMaps);
             }
-            else {
-              varmapFalse = varmaparr[1];
-              varmaparr[1] = null;
-            }
-
-            processExprent(node, func.getLstOperands().get(1), varmaparr);
-
-            SFormsFastMapDirect[] varmaparrNeg = new SFormsFastMapDirect[]{varmapFalse, null};
-            processExprent(node, func.getLstOperands().get(2), varmaparrNeg);
-
-            mergeMaps(varmaparr[0], varmaparrNeg[0]);
-            varmaparr[1] = null;
 
             finished = true;
             break;
-          case FunctionExprent.FUNCTION_CADD:
-            processExprent(node, func.getLstOperands().get(0), varmaparr);
+          }
+          case FunctionExprent.FUNCTION_CADD: {
+            this.processExprent(node, func.getLstOperands().get(0), varmaps);
 
-            SFormsFastMapDirect[] varmaparrAnd = new SFormsFastMapDirect[]{new SFormsFastMapDirect(varmaparr[0]), null};
+            VarMapHolder rightHandSideVarMaps = VarMapHolder.ofNormal(varmaps.getIfTrue());
 
-            processExprent(node, func.getLstOperands().get(1), varmaparrAnd);
+            this.processExprent(node, func.getLstOperands().get(1), rightHandSideVarMaps);
 
-            // false map
-            varmaparr[1] = mergeMaps(varmaparr[varmaparr[1] == null ? 0 : 1], varmaparrAnd[varmaparrAnd[1] == null ? 0 : 1]);
             // true map
-            varmaparr[0] = varmaparrAnd[0];
-
-            finished = true;
-            break;
-          case FunctionExprent.FUNCTION_COR:
-            processExprent(node, func.getLstOperands().get(0), varmaparr);
-
-            SFormsFastMapDirect[] varmaparrOr =
-              new SFormsFastMapDirect[]{new SFormsFastMapDirect(varmaparr[varmaparr[1] == null ? 0 : 1]), null};
-
-            processExprent(node, func.getLstOperands().get(1), varmaparrOr);
-
+            varmaps.setIfTrue(rightHandSideVarMaps.getIfTrue());
             // false map
-            varmaparr[1] = varmaparrOr[varmaparrOr[1] == null ? 0 : 1];
-            // true map
-            varmaparr[0] = mergeMaps(varmaparr[0], varmaparrOr[0]);
+            varmaps.mergeIfFalse(rightHandSideVarMaps.getIfFalse());
 
             finished = true;
             break;
-          case FunctionExprent.FUNCTION_INSTANCEOF:
-            // Pattern matching instanceof
-            if (func.getLstOperands().size() > 2) {
+          }
+          case FunctionExprent.FUNCTION_COR: {
+            this.processExprent(node, func.getLstOperands().get(0), varmaps);
+
+            VarMapHolder rightHandSideVarMaps = VarMapHolder.ofNormal(varmaps.getIfTrue());
+
+            this.processExprent(node, func.getLstOperands().get(1), rightHandSideVarMaps);
+
+            // true map
+            varmaps.mergeIfTrue(rightHandSideVarMaps.getIfTrue());
+            // false map
+            varmaps.setIfFalse(rightHandSideVarMaps.getIfFalse());
+
+            finished = true;
+            break;
+          }
+          case FunctionExprent.FUNCTION_BOOL_NOT: {
+            this.processExprent(node, func.getLstOperands().get(0), varmaps);
+            varmaps.swap();
+
+            finished = true;
+            break;
+          }
+          case FunctionExprent.FUNCTION_INSTANCEOF: {
+            processExprent(node, func.getLstOperands().get(0), varmaps);
+            varmaps.toNormal();
+
+            if(func.getLstOperands().size() == 3) {
+              // pattern matching
+              varmaps.makeFullyMutable();
+
               varassign = (VarExprent)func.getLstOperands().get(2);
+              int varindex = varassign.getIndex();
+
+              if (varassign.getVersion() == 0) {
+                // get next version
+                int nextver = getNextFreeVersion(varindex);
+
+                // set version
+                varassign.setVersion(nextver);
+
+                setCurrentVar(varmaps.getIfTrue(), varindex, nextver);
+              }
+              else {
+                setCurrentVar(varmaps.getIfTrue(), varindex, varassign.getVersion());
+              }
+
+              // I don't understand why this is needed
+              varmaps.mergeIfFalse(varmaps.getIfTrue());
+
+              // skipRecursion = true;
+              finished = true;
+            } else {
+              finished = true;
             }
             break;
+          }
         }
     }
 
@@ -211,14 +249,16 @@ public class SSAConstructorSparseEx {
       varassign = (VarExprent) node.exprents.get(0);
     }
 
+
     List<Exprent> lst = expr.getAllExprents();
     lst.remove(varassign);
 
     for (Exprent ex : lst) {
-      processExprent(node, ex, varmaparr);
+      processExprent(node, ex, varmaps);
+      varmaps.toNormal();
     }
 
-    SFormsFastMapDirect varmap = varmaparr[0];
+    SFormsFastMapDirect varmap = varmaps.getNormal();
 
     if (varassign != null) {
 
@@ -411,15 +451,6 @@ public class SSAConstructorSparseEx {
     }
 
     return mapNew;
-  }
-
-  private static SFormsFastMapDirect mergeMaps(SFormsFastMapDirect mapTo, SFormsFastMapDirect map2) {
-
-    if (map2 != null && !map2.isEmpty()) {
-      mapTo.union(map2);
-    }
-
-    return mapTo;
   }
 
   private static boolean mapsEqual(SFormsFastMapDirect map1, SFormsFastMapDirect map2) {

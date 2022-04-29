@@ -48,6 +48,157 @@ public final class IfHelper {
     return res;
   }
 
+  /*
+   * convert
+   * l: {
+   *     if (condA) {
+   *         break l;
+   *     } else {
+   *         ...
+   *     }
+   * }
+   *
+   * into
+   *
+   * if (!condA) {
+   *     ...
+   * }
+   *
+   * and
+   *
+   * l: {
+   *     if (condA) {
+   *         ...
+   *     } else {
+   *         break l;
+   *     }
+   * }
+   *
+   * into
+   *
+   * if (condA) {
+   *     ...
+   * }
+   */
+  public static boolean relaxIfs(Statement statement) {
+    if (statement.type != Statement.TYPE_SEQUENCE) {
+      return false;
+    }
+
+    List<Statement> stats = statement.getStats();
+
+    boolean changed = false;
+
+    for (int i = 1; i < stats.size(); i++) {
+      Statement stat = stats.get(i - 1);
+      Statement nextStat = stats.get(i);
+
+      if (stat.type == Statement.TYPE_IF) {
+        IfStatement ifstat = (IfStatement)stat;
+        changed |= fixIf(ifstat, nextStat);
+      }
+    }
+
+    return changed;
+  }
+
+  public static boolean fixIf(IfStatement ifstatement, Statement nextStat) {
+    boolean changed = false;
+    // clean up empty if block
+    if (ifstatement.getSuccessorEdges(Statement.STATEDGE_DIRECT_ALL).size() != 1) {
+      // this feels illegal
+      return false;
+    }
+    Statement afterIf = ifstatement.getSuccessorEdges(Statement.STATEDGE_DIRECT_ALL).get(0).getDestination();
+
+    o: if (ifstatement.getIfstat() != null &&
+           ifstatement.getElseEdge() != null &&
+           ifstatement.getIfstat().type == Statement.TYPE_BASICBLOCK &&
+           ifstatement.getIfstat().getExprents().isEmpty()) {
+      final Statement ifstat = ifstatement.getIfstat();
+
+
+      final List<StatEdge> successorEdges = ifstat.getSuccessorEdges(Statement.STATEDGE_DIRECT_ALL);
+      if (successorEdges.size() != 1) {
+        // this feels illegal
+        break o;
+      }
+
+      StatEdge successorEdge = successorEdges.get(0);
+      if(successorEdge.getDestination() != afterIf) {
+        break o;
+      }
+
+      StatEdge ifEdge = ifstatement.getIfEdge();
+      ifstatement.getFirst().removeSuccessor(ifEdge);
+
+      ifstatement.setIfstat(null);
+
+      ifstat.removeSuccessor(successorEdge);
+      successorEdge.setSource(ifstatement.getFirst());
+      ifstatement.getFirst().addSuccessor(successorEdge);
+      ifstatement.setIfEdge(successorEdge);
+
+      ifstatement.getStats().removeWithKey(ifstat.id);
+
+      changed = true;
+    }
+
+    // can't make both null
+    o: if (ifstatement.getIfstat() != null &&
+           ifstatement.getElsestat() != null &&
+           ifstatement.getElsestat().type == Statement.TYPE_BASICBLOCK &&
+           ifstatement.getElsestat().getExprents().isEmpty()) {
+      final Statement elsestat = ifstatement.getElsestat();
+
+
+      final List<StatEdge> successorEdges = elsestat.getSuccessorEdges(Statement.STATEDGE_DIRECT_ALL);
+      if (successorEdges.size() != 1) {
+        break o;
+      }
+
+      StatEdge successorEdge = successorEdges.get(0);
+      if(successorEdge.getDestination() != afterIf) {
+        break o;
+      }
+
+      StatEdge elseEdge = ifstatement.getElseEdge();
+      ifstatement.getFirst().removeSuccessor(elseEdge);
+
+      ifstatement.setElsestat(null);
+
+      elsestat.removeSuccessor(successorEdge);
+      successorEdge.setSource(ifstatement.getFirst());
+      ifstatement.getFirst().addSuccessor(successorEdge);
+      ifstatement.setElseEdge(successorEdge);
+
+      ifstatement.getStats().removeWithKey(elsestat.id);
+
+      changed = true;
+    }
+
+
+    if (ifstatement.getIfstat() == null && ifstatement.getElsestat() != null) {
+      // swap
+      StatEdge oldIfEdge = ifstatement.getIfEdge();
+      StatEdge oldElseEdge = ifstatement.getElseEdge();
+      ifstatement.setIfEdge(oldElseEdge);
+      ifstatement.setElseEdge(null);
+
+      oldIfEdge.getSource().removeSuccessor(oldIfEdge);
+
+      ifstatement.getHeadexprent().negateIf();
+
+      ifstatement.setIfstat(ifstatement.getElsestat());
+      ifstatement.setElsestat(null);
+      ifstatement.iftype = IfStatement.IFTYPE_IF;
+
+      changed = true;
+    }
+
+    return changed;
+  }
+
   public static boolean mergeIfs(Statement statement, Set<? super Integer> setReorderedIfs) {
     if (statement.type != Statement.TYPE_IF && statement.type != Statement.TYPE_SEQUENCE) {
       return false;
