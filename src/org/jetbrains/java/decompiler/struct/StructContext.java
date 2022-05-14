@@ -14,6 +14,10 @@ import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
+import java.nio.channels.SeekableByteChannel;
+import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -124,28 +128,53 @@ public class StructContext {
     }
   }
 
+  private static boolean isJarFile(File file) {
+    if (!file.isFile()) return false;
+    String name = file.getName();
+    if (name.endsWith(".jar") || name.endsWith(".zip")) return true;
+    if (name.endsWith(".class")) return false;
+    try (SeekableByteChannel channel = Files.newByteChannel(file.toPath())) {
+      long size = channel.size();
+      // The EOCD ZIP record has 22+n bytes depending on the length of the comment.
+      if (size < 22) return false;
+      int bufferSize = (int) Math.min(size & ~3, 1024);
+      channel.position(size - bufferSize);
+      ByteBuffer buffer = ByteBuffer.allocate(bufferSize).order(ByteOrder.LITTLE_ENDIAN);
+      int read = 0;
+      while (read < bufferSize) {
+        read += channel.read(buffer);
+      }
+      buffer.flip();
+      for (int pos = buffer.limit() - 22; pos >= 0; pos--) {
+        if (buffer.getInt(pos) == 0x06054b50) {
+          return true;
+        }
+      }
+    } catch (IOException e) {
+      DecompilerContext.getLogger().writeMessage("Could not determine if " + file + " contains a JAR file", IFernflowerLogger.Severity.WARN, e);
+    }
+    return false;
+  }
+
   public void addSpace(File file, boolean isOwn) {
     if (file.isDirectory()) {
       addSpace(new DirectoryContextSource(this.legacyProvider, file), isOwn);
+    } else if (isJarFile(file)) {
+      // archive
+      try {
+        addSpace(new JarContextSource(this.legacyProvider, file), isOwn);
+      } catch (final IOException ex) {
+        final String message = "Invalid archive " + file;
+        DecompilerContext.getLogger().writeMessage(message, IFernflowerLogger.Severity.ERROR, ex);
+        throw new UncheckedIOException(message, ex);
+      }
     } else if (file.isFile()) {
-      final String name = file.getName();
-      if (name.endsWith(".jar") || name.endsWith(".zip")) {
-        // archive
-        try {
-          addSpace(new JarContextSource(this.legacyProvider, file), isOwn);
-        } catch (final IOException ex) {
-          final String message = "Invalid archive " + file;
-          DecompilerContext.getLogger().writeMessage(message, IFernflowerLogger.Severity.ERROR, ex);
-          throw new UncheckedIOException(message, ex);
-        }
-      } else {
-        try {
-          addSpace(new SingleFileContextSource(this.legacyProvider, file), isOwn);
-        } catch (final IOException ex) {
-          final String message = "Invalid file " + file;
-          DecompilerContext.getLogger().writeMessage(message, IFernflowerLogger.Severity.ERROR, ex);
-          throw new UncheckedIOException(message, ex);
-        }
+      try {
+        addSpace(new SingleFileContextSource(this.legacyProvider, file), isOwn);
+      } catch (final IOException ex) {
+        final String message = "Invalid file " + file;
+        DecompilerContext.getLogger().writeMessage(message, IFernflowerLogger.Severity.ERROR, ex);
+        throw new UncheckedIOException(message, ex);
       }
     }
   }

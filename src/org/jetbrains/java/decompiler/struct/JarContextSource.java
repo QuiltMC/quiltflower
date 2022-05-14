@@ -28,7 +28,7 @@ final class JarContextSource implements IContextSource, AutoCloseable {
   private final String relativePath; // used for nested contexts from DirectoryContextSource
   private final File jarFile;
   private final ZipFile file;
-  private boolean isJar;
+  private final boolean isZip;
 
   @SuppressWarnings("deprecation")
   JarContextSource(final IBytecodeProvider legacyProvider, final File archive) throws IOException {
@@ -41,7 +41,7 @@ final class JarContextSource implements IContextSource, AutoCloseable {
     this.relativePath = relativePath;
     this.jarFile = requireNonNull(archive, "archive");
     this.file = new ZipFile(archive);
-    this.isJar = this.jarFile.getName().endsWith("jar");
+    this.isZip = this.jarFile.getName().endsWith("zip");
   }
 
   @Override
@@ -64,7 +64,7 @@ final class JarContextSource implements IContextSource, AutoCloseable {
         if (name.endsWith(CLASS_SUFFIX)) {
           classes.add(Entry.parse(name.substring(0, name.length() - CLASS_SUFFIX.length())));
         }
-        else if (!this.isJar || !name.equalsIgnoreCase(MANIFEST)) {
+        else if (this.isZip || !name.equalsIgnoreCase(MANIFEST)) {
           others.add(Entry.parse(name));
         }
       }
