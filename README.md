@@ -108,7 +108,7 @@ The rest of options can be left as they are: they are aimed at professional reve
 - ovr (1): Show override annotations for methods known to the decompiler.
 - ssp (1): Second-Pass Stack Simplficiation
 - iec (0): Give the decompiler information about every jar on the classpath.
-- jrt (0): Add the currently used Java runtime as a library
+- jrt (0/if running from CLI, `current`): The path to a java runtime to add to the classpath, or `1` or `current` to add the java runtime of the active JVM to the classpath.
 - ega (0): Explicit Generic Arguments
 - isl (1): Inline simple lambdas
 - log (INFO): A logging level, possible values are TRACE, INFO, WARN, ERROR

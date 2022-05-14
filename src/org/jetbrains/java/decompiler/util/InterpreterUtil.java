@@ -22,11 +22,7 @@ public final class InterpreterUtil {
   }
 
   public static void copyStream(InputStream in, OutputStream out) throws IOException {
-    byte[] buffer = new byte[BUFFER_SIZE];
-    int len;
-    while ((len = in.read(buffer)) >= 0) {
-      out.write(buffer, 0, len);
-    }
+    in.transferTo(out);
   }
 
   public static byte[] getBytes(ZipFile archive, ZipEntry entry) throws IOException {
@@ -42,15 +38,10 @@ public final class InterpreterUtil {
   }
 
   public static byte[] readBytes(InputStream stream, int length) throws IOException {
-    byte[] bytes = new byte[length];
+    byte[] bytes = stream.readNBytes(length);
 
-    int n = 0, off = 0;
-    while (n < length) {
-      int count = stream.read(bytes, off + n, length - n);
-      if (count < 0) {
-        throw new IOException("premature end of stream");
-      }
-      n += count;
+    if (bytes.length < length) {
+      throw new IOException("premature end of stream");
     }
 
     return bytes;

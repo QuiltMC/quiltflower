@@ -13,8 +13,8 @@ apply plugin: 'groovy'
 apply plugin: 'maven-publish'
 
 compileJava {
-  sourceCompatibility '1.8'
-  targetCompatibility '1.8'
+  sourceCompatibility '11'
+  targetCompatibility '11'
 }
 
 group = 'org.quiltmc'
@@ -28,8 +28,6 @@ version = version + (ENV.GITHUB_ACTIONS ? "" : "+local")
 sourceSets {
   main.java.srcDirs 'src'
   test.java.srcDirs 'test'
-  // We need specific java9+ versions of certain classes, so we have a separate source set for them
-  java9.java.srcDirs 'java9'
   testDataGroovy.groovy.srcDirs files("testData/src/groovy/")
   testDataKotlin.kotlin.srcDirs files("testData/src/kt/")
 }
@@ -41,22 +39,12 @@ dependencies {
   testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.7.2'
   testImplementation 'org.hamcrest:hamcrest:2.2'
 
-  // Java 9 classes need the main source set
-  java9Implementation sourceSets.main.output
   testDataGroovyImplementation 'org.codehaus.groovy:groovy:3.0.8'
   testDataKotlinImplementation platform('org.jetbrains.kotlin:kotlin-bom')
   testDataKotlinImplementation 'org.jetbrains.kotlin:kotlin-stdlib-jdk8'
   testRuntimeOnly 'org.jetbrains.kotlin:kotlin-stdlib-jdk8'
 }
 
-test {
-  maxHeapSize = "1G"
-  
-  useJUnitPlatform()
-  systemProperty "DOT_EXPORT_DIR", System.getProperty("DOT_EXPORT_DIR", null)
-  systemProperty "DOT_ERROR_EXPORT_DIR", System.getProperty("DOT_ERROR_EXPORT_DIR", null)
-  systemProperty "VALIDATE_DECOMPILED_CODE", System.getProperty("VALIDATE_DECOMPILED_CODE", "false")
-}
 
 jacocoTestReport.dependsOn(test)
 
@@ -69,7 +57,7 @@ jacocoTestReport {
 }
 
 java.toolchain {
-  languageVersion = JavaLanguageVersion.of(8)
+  languageVersion = JavaLanguageVersion.of(11)
 }
 
 tasks.withType(JavaCompile) {
@@ -95,7 +83,14 @@ void createJavaTestDataSet(int version, String suffix = "", List<String> compile
   testDataClasses.dependsOn("testDataJava${version}${suffix}Classes")
 }
 
-[8, 9, 11, 16, 17].forEach { version -> createJavaTestDataSet(version) }
+def testJavaRuntimes = [:]
+
+[8, 9, 11, 16, 17].forEach { version -> 
+    createJavaTestDataSet(version)
+    testJavaRuntimes[version] = javaToolchains.launcherFor {
+        languageVersion = JavaLanguageVersion.of(version)
+    }
+}
 [16, 17].forEach { version -> createJavaTestDataSet(version, "Preview", ["--enable-preview"]) }
 [8, 16].forEach { version -> createJavaTestDataSet(version, "NoDebug", ["-g:none"])}
 
@@ -120,22 +115,43 @@ compileTestDataKotlinKotlin {
 }
 testDataClasses.dependsOn(testDataKotlinClasses)
 
-// Compile the java 9 classes
-compileJava9Java {
-  javaCompiler = javaToolchains.compilerFor {
-    languageVersion = JavaLanguageVersion.of(9)
+class TestDataRuntimesProvider implements CommandLineArgumentProvider {
+    @Nested
+    final MapProperty<String, JavaLauncher> launchers
+    
+    @Inject
+    TestDataRuntimesProvider(final ObjectFactory objects) {
+        this.launchers = objects.mapProperty(Integer, JavaLauncher)
+    }
+     
+    @Override
+    Iterable<String> asArguments() {
+        def result = []
+        this.launchers.get().each { k, v ->
+            result << "-Djava.${k}.home=${v.metadata.installationPath.asFile.absolutePath}"
+        }
+        return result
+    }
+}
+
+test {
+  maxHeapSize = "512M"
+  
+  useJUnitPlatform()
+  systemProperty "DOT_EXPORT_DIR", System.getProperty("DOT_EXPORT_DIR", null)
+  systemProperty "DOT_ERROR_EXPORT_DIR", System.getProperty("DOT_ERROR_EXPORT_DIR", null)
+  systemProperty "VALIDATE_DECOMPILED_CODE", System.getProperty("VALIDATE_DECOMPILED_CODE", "false")
+  
+  def provider = objects.newInstance(TestDataRuntimesProvider)
+  testJavaRuntimes.each { k, v ->
+      provider.launchers.put(k, v)
   }
+  jvmArgumentProviders << provider
 }
 
 jar {
-  // put the java 9 source set into the jar to make a multi-release jar
-  into('META-INF/versions/9') {
-    from sourceSets.java9.output
-  }
-
   manifest {
     attributes (
-      'Multi-Release': 'true',
       'Main-Class': 'org.jetbrains.java.decompiler.main.decompiler.ConsoleDecompiler',
       'Implementation-Name': "Quiltflower"
     )

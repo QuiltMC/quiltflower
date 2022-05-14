@@ -157,7 +157,7 @@ public interface IFernflowerPreferences {
   String INCLUDE_ENTIRE_CLASSPATH = "iec";
 
   @Name("Include Java Runtime")
-  @Description("Give the decompiler information about the Java runtime.")
+  @Description("Give the decompiler information about the Java runtime, either 1 or current for the current runtime, or a path to another runtime")
   String INCLUDE_JAVA_RUNTIME = "jrt";
 
   @Name("Explicit Generic Arguments")
@@ -284,7 +284,7 @@ public interface IFernflowerPreferences {
     defaults.put(SIMPLIFY_STACK_SECOND_PASS, "1"); // Generally produces better bytecode, useful to debug if it does something strange
 
     defaults.put(INCLUDE_ENTIRE_CLASSPATH, "0");
-    defaults.put(INCLUDE_JAVA_RUNTIME, "0");
+    defaults.put(INCLUDE_JAVA_RUNTIME, "");
     defaults.put(EXPLICIT_GENERIC_ARGUMENTS, "0");
     defaults.put(INLINE_SIMPLE_LAMBDAS, "1");
 

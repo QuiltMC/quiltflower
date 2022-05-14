@@ -2,13 +2,18 @@
 package org.jetbrains.java.decompiler.struct.attr;
 
 import org.jetbrains.java.decompiler.code.BytecodeVersion;
+import org.jetbrains.java.decompiler.code.CodeConstants;
 import org.jetbrains.java.decompiler.struct.consts.ConstantPool;
 import org.jetbrains.java.decompiler.util.DataInputFullStream;
 
 import java.io.IOException;
+import java.lang.module.ModuleDescriptor;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.EnumSet;
 import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 public class StructModuleAttribute extends StructGeneralAttribute {
   public String moduleName;
@@ -37,6 +42,65 @@ public class StructModuleAttribute extends StructGeneralAttribute {
     this.opens = readOpens(data, pool);
     this.uses = readUses(data, pool);
     this.provides = readProvides(data, pool);
+  }
+
+  public ModuleDescriptor asDescriptor() {
+    var mods = EnumSet.noneOf(ModuleDescriptor.Modifier.class);
+    if ((this.moduleFlags & CodeConstants.ACC_OPEN) != 0) mods.add(ModuleDescriptor.Modifier.OPEN);
+    if ((this.moduleFlags & CodeConstants.ACC_SYNTHETIC) != 0) mods.add(ModuleDescriptor.Modifier.SYNTHETIC);
+    if ((this.moduleFlags & CodeConstants.ACC_MANDATED) != 0) mods.add(ModuleDescriptor.Modifier.MANDATED);
+
+    var builder = ModuleDescriptor.newModule(this.moduleName, mods);
+    if (moduleVersion != null) builder.version(moduleVersion);
+
+    for (final var requires : this.requires) {
+      var rMods = EnumSet.noneOf(ModuleDescriptor.Requires.Modifier.class);
+      if ((requires.flags & CodeConstants.ACC_TRANSITIVE) != 0) rMods.add(ModuleDescriptor.Requires.Modifier.TRANSITIVE);
+      if ((requires.flags & CodeConstants.ACC_STATIC_PHASE) != 0) rMods.add(ModuleDescriptor.Requires.Modifier.STATIC);
+      if ((requires.flags & CodeConstants.ACC_SYNTHETIC) != 0) rMods.add(ModuleDescriptor.Requires.Modifier.SYNTHETIC);
+      if ((requires.flags & CodeConstants.ACC_MANDATED) != 0) rMods.add(ModuleDescriptor.Requires.Modifier.MANDATED);
+      if (requires.moduleVersion != null) {
+        builder.requires(rMods, requires.moduleName, ModuleDescriptor.Version.parse(requires.moduleVersion));
+      } else {
+        builder.requires(rMods, requires.moduleName);
+      }
+    }
+
+    for (final var exports : this.exports) {
+      var eMods = EnumSet.noneOf(ModuleDescriptor.Exports.Modifier.class);
+      if ((exports.flags & CodeConstants.ACC_SYNTHETIC) != 0) eMods.add(ModuleDescriptor.Exports.Modifier.SYNTHETIC);
+      if ((exports.flags & CodeConstants.ACC_MANDATED) != 0) eMods.add(ModuleDescriptor.Exports.Modifier.MANDATED);
+      if (exports.exportToModules.isEmpty()) {
+        builder.exports(eMods, exports.packageName.replace('/', '.'));
+      } else {
+        builder.exports(eMods, exports.packageName.replace('/', '.'), Set.copyOf(exports.exportToModules));
+      }
+    }
+
+    for (final var opens : this.opens) {
+      var oMods = EnumSet.noneOf(ModuleDescriptor.Opens.Modifier.class);
+      if ((opens.flags & CodeConstants.ACC_SYNTHETIC) != 0) oMods.add(ModuleDescriptor.Opens.Modifier.SYNTHETIC);
+      if ((opens.flags & CodeConstants.ACC_MANDATED) != 0) oMods.add(ModuleDescriptor.Opens.Modifier.MANDATED);
+
+      if (opens.opensToModules.isEmpty()) {
+        builder.opens(oMods, opens.packageName.replace('/', '.'));
+      } else {
+        builder.opens(oMods, opens.packageName.replace('/', '.'), Set.copyOf(opens.opensToModules));
+      }
+    }
+
+    for (final var uses : this.uses) {
+      builder.uses(uses.replace('/', '.'));
+    }
+
+    for (final var provides : this.provides) {
+      builder.provides(
+        provides.interfaceName.replace('/', '.'),
+        provides.implementationNames.stream().map(name -> name.replace('/', '.')).collect(Collectors.toUnmodifiableList())
+      );
+    }
+
+    return builder.build();
   }
 
   public List<RequiresEntry> readRequires(DataInputFullStream data, ConstantPool pool) throws IOException {

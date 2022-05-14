@@ -1,16 +1,16 @@
 // Copyright 2000-2021 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package org.jetbrains.java.decompiler.struct.lazy;
 
-import org.jetbrains.java.decompiler.main.extern.IBytecodeProvider;
+/*import org.jetbrains.java.decompiler.main.extern.IBytecodeProvider;
 import org.jetbrains.java.decompiler.struct.consts.ConstantPool;
 import org.jetbrains.java.decompiler.util.DataInputFullStream;
 
 import java.io.IOException;
 import java.util.HashMap;
-import java.util.Map;
+import java.util.Map;*/
 
 public class LazyLoader {
-  private final Map<String, Link> mapClassLinks = new HashMap<>();
+  /*private final Map<String, Link> mapClassLinks = new HashMap<>();
   private final IBytecodeProvider provider;
 
   public LazyLoader(IBytecodeProvider provider) {
@@ -70,5 +70,5 @@ public class LazyLoader {
       this.internalPath = internalPath;
       this.data = data;
     }
-  }
+  }*/
 }

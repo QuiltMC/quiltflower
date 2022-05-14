@@ -110,7 +110,7 @@ public class SingleFileSaver implements IResultSaver, AutoCloseable {
   }
 
   @Override
-  public synchronized void saveClassEntry(String path, String archiveName, String qualifiedName, String entryName, String content, int[] mapping) {
+  public void saveClassEntry(String path, String archiveName, String qualifiedName, String entryName, String content, int[] mapping) {
     if (!checkEntry(entryName))
         return;
 
@@ -150,7 +150,7 @@ public class SingleFileSaver implements IResultSaver, AutoCloseable {
   }
 
   @Override
-  public void close() throws Exception {
+  public void close() throws IOException {
     this.openZips.close();
   }
 }

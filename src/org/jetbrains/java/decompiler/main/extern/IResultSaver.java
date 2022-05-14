@@ -1,11 +1,12 @@
 // Copyright 2000-2017 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
 package org.jetbrains.java.decompiler.main.extern;
 
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.jar.Manifest;
 
-public interface IResultSaver {
+public interface IResultSaver extends AutoCloseable {
   void saveFolder(String path);
 
   void copyFile(String source, String path, String entryName);
@@ -25,6 +26,9 @@ public interface IResultSaver {
   }
 
   void closeArchive(String path, String archiveName);
+
+  @Override
+  default void close() throws IOException {}
 
   default byte[] getCodeLineData(int[] mappings) {
     if (mappings == null || mappings.length == 0) {
