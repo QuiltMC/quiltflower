@@ -2,202 +2,173 @@
 package org.jetbrains.java.decompiler.struct;
 
 import org.jetbrains.java.decompiler.main.DecompilerContext;
-import org.jetbrains.java.decompiler.main.decompiler.ConsoleDecompiler;
+import org.jetbrains.java.decompiler.main.extern.IContextSource;
+import org.jetbrains.java.decompiler.main.extern.IFernflowerLogger;
 import org.jetbrains.java.decompiler.main.extern.IFernflowerPreferences;
 import org.jetbrains.java.decompiler.main.extern.IResultSaver;
-import org.jetbrains.java.decompiler.struct.lazy.LazyLoader;
-import org.jetbrains.java.decompiler.struct.lazy.LazyLoader.Link;
-import org.jetbrains.java.decompiler.util.DataInputFullStream;
-import org.jetbrains.java.decompiler.util.InterpreterUtil;
 
-import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.concurrent.*;
-import java.util.jar.JarFile;
-import java.util.jar.Manifest;
-import java.util.zip.ZipFile;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 public class ContextUnit {
-
-  public static final int TYPE_FOLDER = 0;
-  public static final int TYPE_JAR = 1;
-  public static final int TYPE_ZIP = 2;
-
-  private final int type;
+  private final IContextSource source;
   private final boolean own;
+  private final boolean root;
 
-  private final String archivePath;  // relative path to jar/zip
-  private final String filename;     // folder: relative path, archive: file name
   private final IResultSaver resultSaver;
   private final IDecompiledData decompiledData;
 
-  private final List<String> classEntries = new ArrayList<>();  // class file or jar/zip entry
-  private final List<String> dirEntries = new ArrayList<>();
-  private final List<String[]> otherEntries = new ArrayList<>();
+  private volatile boolean entriesInitialized;
+  private List<String> classEntries = List.of(); // class file or jar/zip entry
+  private List<String> dirEntries = List.of();
+  private List<IContextSource.Entry> otherEntries = List.of();
+  private List<IContextSource> childContexts = List.of();
 
-  private List<StructClass> classes = new ArrayList<>();
-  private Manifest manifest;
-
-  public ContextUnit(int type, String archivePath, String filename, boolean own, IResultSaver resultSaver, IDecompiledData decompiledData) {
-    this.type = type;
+  public ContextUnit(IContextSource source, boolean own, boolean root, IResultSaver resultSaver, IDecompiledData decompiledData) {
+    this.source = source;
     this.own = own;
-    this.archivePath = archivePath;
-    this.filename = filename;
+    this.root = root;
     this.resultSaver = resultSaver;
     this.decompiledData = decompiledData;
   }
 
-  public void addClass(StructClass cl, String entryName) {
-    classes.add(cl);
-    classEntries.add(entryName);
-  }
-
-  public void addDirEntry(String entry) {
-    dirEntries.add(entry);
-  }
-
-  public void addOtherEntry(String fullPath, String entry) {
-    if ("fernflower_abstract_parameter_names.txt".equals(entry)) {
-      byte[] data;
-      try {
-        if (type == TYPE_JAR || type == TYPE_ZIP) {
-          try (ZipFile archive = new ZipFile(fullPath)) {
-            data = InterpreterUtil.getBytes(archive, archive.getEntry(entry));
-          }
-        } else {
-          data = InterpreterUtil.getBytes(new File(fullPath));
-        }
-        DecompilerContext.getStructContext().loadAbstractMetadata(new String(data, StandardCharsets.UTF_8));
-      }
-      catch (IOException e) {
-        String message = "Cannot read fernflower_abstract_parameter_names.txt from " + fullPath;
-        DecompilerContext.getLogger().writeMessage(message, e);
-      }
-      return;
-    }
-    if (DecompilerContext.getOption(IFernflowerPreferences.SKIP_EXTRA_FILES))
-        return;
-    otherEntries.add(new String[]{fullPath, entry});
-  }
-
-  public void reload(LazyLoader loader) throws IOException {
-    List<StructClass> lstClasses = new ArrayList<>();
-
-    for (StructClass cl : classes) {
-      String oldName = cl.qualifiedName;
-
-      StructClass newCl;
-      try (DataInputFullStream in = loader.getClassStream(oldName)) {
-        newCl = StructClass.create(in, cl.isOwn(), loader);
-      }
-
-      lstClasses.add(newCl);
-
-      Link lnk = loader.getClassLink(oldName);
-      loader.removeClassLink(oldName);
-      loader.addClassLink(newCl.qualifiedName, lnk);
-    }
-
-    classes = lstClasses;
-  }
-
-  public void save() {
-    switch (type) {
-      case TYPE_FOLDER:
-        // FIXME: ugly but needs to exist for folder->jar saving to work properly
-        if (!(resultSaver instanceof ConsoleDecompiler)) {
-          resultSaver.createArchive(archivePath, filename, manifest);
-        }
-
-        // create folder
-        resultSaver.saveFolder(filename);
-
-        // non-class files
-        for (String[] pair : otherEntries) {
-          resultSaver.copyFile(pair[0], filename, pair[1]);
-        }
-
-        // classes
-        for (int i = 0; i < classes.size(); i++) {
-          StructClass cl = classes.get(i);
-          if (!cl.isOwn()) {
-            continue;
-          }
-          String entryName = decompiledData.getClassEntryName(cl, classEntries.get(i));
-          if (entryName != null) {
-            String content = decompiledData.getClassContent(cl);
-            if (content != null) {
-              int[] mapping = null;
-              if (DecompilerContext.getOption(IFernflowerPreferences.BYTECODE_SOURCE_MAPPING)) {
-                mapping = DecompilerContext.getBytecodeSourceMapper().getOriginalLinesMapping();
+  private void initEntries() {
+    if (!this.entriesInitialized) {
+      synchronized (this) {
+        if (!this.entriesInitialized) {
+          final IContextSource.Entries entries = this.source.getEntries();
+          // TODO: more proper handling of multirelease jars, rather than just stripping them
+          this.classEntries = entries.classes().stream()
+            .filter(ent -> ent.multirelease() == IContextSource.Entry.BASE_VERSION)
+            .map(entry -> entry.basePath())
+            .collect(Collectors.toUnmodifiableList());
+          this.dirEntries = entries.directories();
+          boolean includeExtras = !DecompilerContext.getOption(IFernflowerPreferences.SKIP_EXTRA_FILES);
+          this.otherEntries = new ArrayList<>();
+          for (final IContextSource.Entry entry : entries.others()) {
+            if ("fernflower_abstract_parameter_names.txt".equals(entry.basePath())) {
+              try (final InputStream is = this.source.getInputStream(entry)) {
+                final byte[] data = is.readAllBytes();
+                DecompilerContext.getStructContext().loadAbstractMetadata(new String(data, StandardCharsets.UTF_8));
+              } catch (final IOException ex) {
+                DecompilerContext.getLogger().writeMessage("Failed to load abstract parameter names file", IFernflowerLogger.Severity.ERROR, ex);
               }
-              resultSaver.saveClassFile(filename, cl.qualifiedName, entryName, content, mapping);
+            } else if (includeExtras) {
+              this.otherEntries.add(entry);
             }
           }
+          this.childContexts = entries.childContexts();
+          this.entriesInitialized = true;
         }
-
-        if (!(resultSaver instanceof ConsoleDecompiler)) {
-          resultSaver.closeArchive(archivePath, filename);
-        }
-
-        break;
-
-      case TYPE_JAR:
-      case TYPE_ZIP:
-        // create archive file
-        resultSaver.saveFolder(archivePath);
-        resultSaver.createArchive(archivePath, filename, manifest);
-
-        // directory entries
-        for (String dirEntry : dirEntries) {
-          resultSaver.saveDirEntry(archivePath, filename, dirEntry);
-        }
-
-        // non-class entries
-        for (String[] pair : otherEntries) {
-          if (type != TYPE_JAR || !JarFile.MANIFEST_NAME.equalsIgnoreCase(pair[1])) {
-            resultSaver.copyEntry(pair[0], archivePath, filename, pair[1]);
-          }
-        }
-
-        final List<Future<?>> futures = new LinkedList<>();
-        final ExecutorService decompileExecutor = Executors.newFixedThreadPool(Integer.parseInt((String) DecompilerContext.getProperty(IFernflowerPreferences.THREADS)));
-        final DecompilerContext rootContext = DecompilerContext.getCurrentContext();
-
-        // classes
-        for (int i = 0; i < classes.size(); i++) {
-          StructClass cl = classes.get(i);
-          String entryName = decompiledData.getClassEntryName(cl, classEntries.get(i));
-          if (entryName != null) {
-            futures.add(decompileExecutor.submit(() -> {
-              setContext(rootContext);
-              String content = decompiledData.getClassContent(cl);
-              int[] mapping = null;
-              if (DecompilerContext.getOption(IFernflowerPreferences.BYTECODE_SOURCE_MAPPING)) {
-                mapping = DecompilerContext.getBytecodeSourceMapper().getOriginalLinesMapping();
-              }
-              resultSaver.saveClassEntry(archivePath, filename, cl.qualifiedName, entryName, content, mapping);
-            }));
-          }
-        }
-
-        decompileExecutor.shutdown();
-
-        for (Future<?> future : futures) {
-          try {
-            future.get();
-          } catch (InterruptedException | ExecutionException e) {
-            throw new RuntimeException(e);
-          }
-        }
-
-        resultSaver.closeArchive(archivePath, filename);
+      }
     }
+  }
+
+  public List<String> getClassNames() {
+    this.initEntries();
+    return this.classEntries;
+  }
+
+  public byte/* @Nullable */[] getClassBytes(final String className) throws IOException {
+    return this.source.getClassBytes(className);
+  }
+
+  public List<String> getDirectoryNames() {
+    this.initEntries();
+    return this.dirEntries;
+  }
+
+  public List<IContextSource.Entry> getOtherEntries() {
+    this.initEntries();
+    return this.otherEntries;
+  }
+
+  public List<IContextSource> getChildContexts() {
+    this.initEntries();
+    return this.childContexts;
+  }
+
+  public String getName() {
+    return this.source.getName();
+  }
+
+  public void clear() throws IOException {
+    synchronized (this) {
+      this.entriesInitialized = false;
+      this.classEntries = List.of();
+      this.dirEntries = List.of();
+      this.otherEntries = List.of();
+    }
+  }
+
+  public void save(final Function<String, StructClass> loader) throws IOException {
+    this.initEntries();
+    final IContextSource.IOutputSink sink = this.source.createOutputSink(this.resultSaver);
+    if (sink == null) {
+      throw new IllegalStateException("Context source " + this.source + " cannot be saved, but had a save requested.");
+    }
+
+    sink.begin();
+
+    // directory entries
+    for (String dirEntry : dirEntries) {
+      sink.acceptDirectory(dirEntry);
+    }
+
+    // non-class entries
+    for (IContextSource.Entry otherEntry : otherEntries) {
+      sink.acceptOther(otherEntry.path());
+    }
+
+    //Whooo threads!
+    final List<Future<?>> futures = new LinkedList<>();
+    final ExecutorService decompileExecutor = Executors.newFixedThreadPool(Integer.parseInt((String) DecompilerContext.getProperty(IFernflowerPreferences.THREADS)));
+    final DecompilerContext rootContext = DecompilerContext.getCurrentContext();
+    final ClassContext[] toDump = new ClassContext[classEntries.size()];
+
+    // classes
+    for (int i = 0; i < classEntries.size(); i++) {
+      StructClass cl = loader.apply(classEntries.get(i));
+      String entryName = decompiledData.getClassEntryName(cl, classEntries.get(i));
+      if (entryName != null) {
+        final int finalI = i;
+        futures.add(decompileExecutor.submit(() -> {
+          setContext(rootContext);
+          String content = decompiledData.getClassContent(cl);
+          int[] mapping = null;
+          if (DecompilerContext.getOption(IFernflowerPreferences.BYTECODE_SOURCE_MAPPING)) {
+            mapping = DecompilerContext.getBytecodeSourceMapper().getOriginalLinesMapping();
+          }
+          toDump[finalI] = new ClassContext(cl.qualifiedName, entryName, content, mapping);
+        }));
+      }
+    }
+
+    decompileExecutor.shutdown();
+
+    for (Future<?> future : futures) {
+      try {
+        future.get();
+      } catch (InterruptedException | ExecutionException e) {
+        throw new RuntimeException(e);
+      }
+    }
+
+    for (final ClassContext cls : toDump) {
+      if (cls != null) {
+        sink.acceptClass(cls.qualifiedName, cls.entryName, cls.classContent, cls.mapping);
+      }
+    }
+
+    sink.close();
   }
 
   public void setContext(DecompilerContext rootContext) {
@@ -215,15 +186,32 @@ public class ContextUnit {
     }
   }
 
-  public void setManifest(Manifest manifest) {
-    this.manifest = manifest;
-  }
-
   public boolean isOwn() {
     return own;
   }
 
-  public List<StructClass> getClasses() {
-    return classes;
+  public boolean isRoot() {
+    return this.root;
+  }
+
+  void close() throws Exception {
+    if (this.source instanceof AutoCloseable) {
+      ((AutoCloseable) this.source).close();
+    }
+    this.clear();
+  }
+
+  static final class ClassContext {
+    private final String qualifiedName;
+    private final String entryName;
+    private final String classContent;
+    private final int /* @Nullable */[] mapping;
+
+    ClassContext(final String qualifiedName, final String entryName, final String classContent, final int[] mapping) {
+      this.qualifiedName = qualifiedName;
+      this.entryName = entryName;
+      this.classContent = classContent;
+      this.mapping = mapping;
+    }
   }
 }

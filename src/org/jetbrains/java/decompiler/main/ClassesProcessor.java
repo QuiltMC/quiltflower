@@ -91,7 +91,7 @@ public class ClassesProcessor implements CodeConstants {
     boolean verifyAnonymousClasses = DecompilerContext.getOption(IFernflowerPreferences.VERIFY_ANONYMOUS_CLASSES);
 
     // create class nodes
-    for (StructClass cl : context.getOwnClasses().values()) {
+    for (StructClass cl : context.getOwnClasses()) {
       if (!mapRootClasses.containsKey(cl.qualifiedName)) {
         if (bDecompileInner) {
           StructInnerClassesAttribute inner = cl.getAttribute(StructGeneralAttribute.ATTRIBUTE_INNER_CLASSES);

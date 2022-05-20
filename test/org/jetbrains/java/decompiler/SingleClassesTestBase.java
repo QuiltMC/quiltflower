@@ -16,6 +16,7 @@
 package org.jetbrains.java.decompiler;
 
 import org.jetbrains.java.decompiler.main.decompiler.ConsoleDecompiler;
+import org.jetbrains.java.decompiler.main.extern.IFernflowerPreferences;
 import org.jetbrains.java.decompiler.util.TextBuffer;
 import org.junit.jupiter.api.*;
 import org.opentest4j.AssertionFailedError;
@@ -41,7 +42,7 @@ public abstract class SingleClassesTestBase {
   private TestSet currentTestSet;
   private final List<TestSet> testSets = new ArrayList<>();
   private final Set<String> classNames = new HashSet<>();
-  
+
   protected String[] getDecompilerOptions() {
     return new String[] {};
   }
@@ -137,7 +138,23 @@ public abstract class SingleClassesTestBase {
         if (slash >= 0) name = name.substring(slash + 1);
         Path classFile = def.getClassFile();
         Path ref = def.getReferenceFile();
+
+        // Inject a specific runtime
         DynamicTest test = DynamicTest.dynamicTest(name, Files.exists(ref) ? ref.toUri() : classFile.toUri(), () -> {
+          Object[] options = this.options;
+          if (def.version.runtimeVersion != TestDefinition.Version.UNKNOWN_RUNTIME) {
+            for (int i = 0; i < options.length; i+= 2) {
+              if (options[i].equals(IFernflowerPreferences.INCLUDE_JAVA_RUNTIME)
+                && (options[i + 1].equals("1") || options[i + 1].equals("current"))) {
+                final String versionJavaHome = System.getProperty("java." + def.version.runtimeVersion + ".home");
+                if (versionJavaHome == null) {
+                  throw new IllegalStateException("No Java runtime was provided at system property java." + def.version.runtimeVersion + ".home");
+                }
+                options = Arrays.copyOf(options, options.length);
+                options[i + 1] = versionJavaHome;
+              }
+            }
+          }
           def.run(options);
         });
         tests.computeIfAbsent(def.version, k -> new ArrayList<>()).add(test);
@@ -242,10 +259,14 @@ public abstract class SingleClassesTestBase {
       JASM("jasm", "Custom (jasm)"),
       ;
 
+      public static final int UNKNOWN_RUNTIME = -1;
+
+      public final int runtimeVersion;
       public final String directory;
       public final String display;
 
       Version(String directory, String display) {
+        this.runtimeVersion = UNKNOWN_RUNTIME;
         this.directory = directory;
         this.display = display;
       }
@@ -255,7 +276,9 @@ public abstract class SingleClassesTestBase {
       }
 
       Version(int javaVersion, String suffix, String display) {
-        this("java" + javaVersion + suffix, "Java " + javaVersion + (!display.isEmpty() ? " " + display : ""));
+        this.runtimeVersion = javaVersion;
+        this.directory = "java" + javaVersion + suffix;
+        this.display = "Java " + javaVersion + (!display.isEmpty() ? " " + display : "");
       }
 
       @Override

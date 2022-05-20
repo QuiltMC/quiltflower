@@ -6,7 +6,6 @@ import java.io.File;
 import java.util.jar.Manifest;
 
 // "Saves" a file to the standard out console
-// Synchronization is needed due to the threaded nature of the saving.
 public final class ConsoleFileSaver implements IResultSaver {
 
   public ConsoleFileSaver(File unused) {
@@ -24,10 +23,8 @@ public final class ConsoleFileSaver implements IResultSaver {
 
   @Override
   public void saveClassFile(String path, String qualifiedName, String entryName, String content, int[] mapping) {
-    synchronized (this) {
-      System.out.println("==== " + entryName + " ====");
-      System.out.println(content);
-    }
+    System.out.println("==== " + entryName + " ====");
+    System.out.println(content);
   }
 
   @Override
@@ -47,10 +44,8 @@ public final class ConsoleFileSaver implements IResultSaver {
 
   @Override
   public void saveClassEntry(String path, String archiveName, String qualifiedName, String entryName, String content) {
-    synchronized (this) {
-      System.out.println("==== " + entryName + " ====");
-      System.out.println(content);
-    }
+    System.out.println("==== " + entryName + " ====");
+    System.out.println(content);
   }
 
   @Override

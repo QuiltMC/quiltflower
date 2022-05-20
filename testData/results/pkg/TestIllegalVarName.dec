@@ -15,7 +15,7 @@ public final class TestIllegalVarName {
    @NotNull
    public final String m(@NotNull String var1, int var2) {
       Intrinsics.checkNotNullParameter(this, "this");
-      return this + '/' + enum;// 5
+      return this + "/" + enum;// 5
    }
 }
 
@@ -27,14 +27,14 @@ class 'pkg/TestIllegalVarName' {
       3      16
       4      16
       5      16
+      6      17
+      7      17
+      8      17
+      9      17
+      a      17
+      b      17
+      c      17
       d      17
-      11      17
-      12      17
-      16      17
-      1a      17
-      1b      17
-      1c      17
-      1d      17
    }
 }
 

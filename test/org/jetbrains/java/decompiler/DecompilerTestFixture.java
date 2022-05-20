@@ -85,11 +85,11 @@ public class DecompilerTestFixture {
   public ConsoleDecompiler getDecompiler() {
     return decompiler;
   }
-  
+
   public void setCleanup(boolean value) {
     this.cleanup = value;
   }
-  
+
   public boolean getCleanup() {
     return cleanup;
   }
@@ -172,6 +172,7 @@ public class DecompilerTestFixture {
       }
     }
 
+    @Override
     public void close() {
       try {
         super.close();

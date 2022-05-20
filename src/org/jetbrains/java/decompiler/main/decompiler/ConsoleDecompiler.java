@@ -3,11 +3,11 @@ package org.jetbrains.java.decompiler.main.decompiler;
 
 import org.jetbrains.java.decompiler.main.DecompilerContext;
 import org.jetbrains.java.decompiler.main.Fernflower;
-import org.jetbrains.java.decompiler.main.extern.IBytecodeProvider;
 import org.jetbrains.java.decompiler.main.extern.IFernflowerLogger;
 import org.jetbrains.java.decompiler.main.extern.IFernflowerPreferences;
 import org.jetbrains.java.decompiler.main.extern.IResultSaver;
 import org.jetbrains.java.decompiler.util.InterpreterUtil;
+import org.jetbrains.java.decompiler.util.JrtFinder;
 import org.jetbrains.java.decompiler.util.ZipFileCache;
 
 import java.io.*;
@@ -26,7 +26,11 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 import java.util.zip.ZipOutputStream;
 
-public class ConsoleDecompiler implements IBytecodeProvider, IResultSaver, AutoCloseable {
+public class ConsoleDecompiler implements /* IBytecodeProvider, */ IResultSaver, AutoCloseable {
+  private static final Map<String, Object> CONSOLE_DEFAULT_OPTIONS = Map.of(
+    IFernflowerPreferences.INCLUDE_JAVA_RUNTIME, JrtFinder.CURRENT
+  );
+
   @SuppressWarnings("UseOfSystemOutOrSystemErr")
   public static void main(String[] args) {
     List<String> params = new ArrayList<String>();
@@ -68,7 +72,7 @@ public class ConsoleDecompiler implements IBytecodeProvider, IResultSaver, AutoC
       return;
     }
 
-    Map<String, Object> mapOptions = new HashMap<>();
+    Map<String, Object> mapOptions = new HashMap<>(CONSOLE_DEFAULT_OPTIONS);
     List<File> sources = new ArrayList<>();
     List<File> libraries = new ArrayList<>();
     Set<String> whitelist = new HashSet<>();
@@ -209,7 +213,7 @@ public class ConsoleDecompiler implements IBytecodeProvider, IResultSaver, AutoC
 
   protected ConsoleDecompiler(File destination, Map<String, Object> options, IFernflowerLogger logger, SaveType saveType) {
     root = destination;
-    engine = new Fernflower(this, saveType == SaveType.LEGACY_CONSOLEDECOMPILER ? this : saveType.getSaver().apply(destination), options, logger);
+    engine = new Fernflower(saveType == SaveType.LEGACY_CONSOLEDECOMPILER ? this : saveType.getSaver().apply(destination), options, logger);
   }
 
   public void addSource(File source) {
@@ -237,8 +241,8 @@ public class ConsoleDecompiler implements IBytecodeProvider, IResultSaver, AutoC
   // Interface IBytecodeProvider
   // *******************************************************************
 
-  @Override
-  public byte[] getBytecode(String externalPath, String internalPath) throws IOException {
+  // @Override
+  public byte[] getBytecode(String externalPath, String internalPath) throws IOException { // UNUSED
     if (internalPath == null) {
       File file = new File(externalPath);
       return InterpreterUtil.getBytes(file);
@@ -344,7 +348,7 @@ public class ConsoleDecompiler implements IBytecodeProvider, IResultSaver, AutoC
   }
 
   @Override
-  public synchronized void saveClassEntry(String path, String archiveName, String qualifiedName, String entryName, String content, int[] mapping) {
+  public void saveClassEntry(String path, String archiveName, String qualifiedName, String entryName, String content, int[] mapping) {
     String file = new File(getAbsolutePath(path), archiveName).getPath();
 
     if (!checkEntry(entryName, file)) {
@@ -392,7 +396,7 @@ public class ConsoleDecompiler implements IBytecodeProvider, IResultSaver, AutoC
   }
 
   @Override
-  public void close() throws Exception {
+  public void close() throws IOException {
     this.openZips.close();
   }
 
