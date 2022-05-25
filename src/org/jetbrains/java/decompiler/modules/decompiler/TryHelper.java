@@ -8,10 +8,7 @@ import org.jetbrains.java.decompiler.struct.StructClass;
 import org.jetbrains.java.decompiler.util.DotExporter;
 import org.jetbrains.java.decompiler.util.StartEndPair;
 
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 
 public class TryHelper {
   public static boolean enhanceTryStats(RootStatement root, StructClass cl) {
@@ -184,5 +181,70 @@ public class TryHelper {
       }
     }
     return false;
+  }
+
+  // try {
+  //   ...
+  // } catch (Exception e) {
+  //   ...
+  // } catch (Exception e) {
+  //   ...
+  // }
+  //
+  // into
+  // try {
+  //   try {
+  //     ...
+  //   } catch (Exception e) {
+  //     ...
+  //   }
+  // } catch (Exception e) {
+  //   ...
+  // }
+  public static boolean splitTryWithSameCatch(RootStatement root) {
+    return splitTryWithSameCatch(root, root);
+  }
+
+  private static boolean splitTryWithSameCatch(RootStatement root, Statement stat) {
+    boolean ret = false;
+
+    for (Statement st : new ArrayList<>(stat.getStats())) {
+      ret |= splitTryWithSameCatch(root, st);
+    }
+
+    if (stat.type == Statement.TYPE_TRYCATCH && ((CatchStatement)stat).getTryType() == CatchStatement.NORMAL) {
+      CatchStatement catchStat = (CatchStatement) stat;
+
+      Set<List<String>> setExec = new HashSet<>(catchStat.getExctStrings());
+
+      // Check if list of catch headers has a duplicate type
+      if (setExec.size() < catchStat.getExctStrings().size()) {
+        // To not have to calculate catch dominators, split along every catch type for now
+        // TODO: better impl that only splits the needed type
+
+        // Stack of nested statements
+        List<Statement> catchStack = new ArrayList<>();
+        catchStack.add(stat.getFirst());
+
+        for (int i = 0; i < catchStat.getExctStrings().size(); i++) {
+          // Make new trycatch out of the last statement on the stack, as well as the original statement's catch handler
+          CatchStatement newCatch = new CatchStatement(catchStack.get(i), stat.getStats().get(i + 1), catchStat.getExctStrings().get(i), catchStat.getVars().get(i));
+
+          newCatch.setAllParent();
+
+          // The statement that we just made is now the topmost on the stack
+          catchStack.add(newCatch);
+        }
+
+        // Replace the original statement with the nested type
+        stat.replaceWith(catchStack.get(catchStack.size() - 1));
+
+        root.addComment(" $FF: Try-catch with two of the same exception type had to be split");
+
+        ret = true;
+      }
+    }
+
+    return ret;
   }
 }

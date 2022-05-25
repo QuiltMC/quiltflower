@@ -567,7 +567,6 @@ public class SingleClassesTest extends SingleClassesTestBase {
     register(JAVA_8, "TestLoopReturn");
     // TODO: var is used before it's defined, and it's not correct
     register(JAVA_8, "TestForCyclicVarDef");
-    // TODO: merging of trycatch incorrect
     register(JAVA_8, "TestTryCatchNested");
     register(JAVA_8, "TestSwitchTernary");
     register(JAVA_8, "TestBooleanExpressions");

@@ -1,51 +1,180 @@
 package pkg;
 
+import java.io.UncheckedIOException;
+
 public class TestTryCatchNested {
+   //  $FF: Try-catch with two of the same exception type had to be split
    public void test() {
-      float var1 = 20.0F;// 5
+      float var1 = 20.0F;// 7
 
       try {
-         System.out.println(var1);// 8
-         return;// 9
-      } catch (Exception var3) {// 10
-      } catch (Exception var4) {// 12
-         System.out.println(var1);// 13
+         try {
+            System.out.println(var1);// 10
+            return;// 11
+         } catch (Exception var3) {// 12
+         }
+      } catch (Exception var4) {// 14
+         System.out.println(var1);// 15
       }
 
-   }// 15
+   }// 17
+
+   //  $FF: Try-catch with two of the same exception type had to be split
+   public void test1() {
+      float var1 = 20.0F;// 20
+
+      try {
+         try {
+            try {
+               System.out.println(var1);// 23
+               return;// 24
+            } catch (Exception var3) {// 25
+            }
+         } catch (UncheckedIOException var4) {// 27
+            System.out.println(var4.getCause());// 28
+         }
+      } catch (Exception var5) {// 29
+         System.out.println(var1);// 30
+      }
+
+   }// 32
+
+   //  $FF: Try-catch with two of the same exception type had to be split
+   public void test2() {
+      float var1 = 20.0F;// 35
+
+      try {
+         try {
+            try {
+               System.out.println(var1);// 38
+               return;// 39
+            } catch (Exception var3) {// 40
+            }
+         } catch (Exception var4) {// 42
+            System.out.println(var1);// 43
+         }
+      } catch (Throwable var5) {// 44
+         System.out.println(var5.getCause());// 45
+      }
+
+   }// 47
 }
 
 class 'pkg/TestTryCatchNested' {
    method 'test ()V' {
-      0      4
-      1      4
-      2      4
-      3      7
-      4      7
-      5      7
-      6      7
-      7      7
-      8      7
-      9      7
-      a      8
-      b      9
-      f      10
-      10      11
-      11      11
-      12      11
-      13      11
-      14      11
-      17      14
+      0      7
+      1      7
+      2      7
+      3      11
+      4      11
+      5      11
+      6      11
+      7      11
+      8      11
+      9      11
+      a      12
+      b      13
+      f      15
+      10      16
+      11      16
+      12      16
+      13      16
+      14      16
+      17      19
+   }
+
+   method 'test1 ()V' {
+      0      23
+      1      23
+      2      23
+      3      28
+      4      28
+      5      28
+      6      28
+      7      28
+      8      28
+      9      28
+      a      29
+      b      30
+      f      32
+      10      33
+      11      33
+      12      33
+      14      33
+      15      33
+      16      33
+      17      33
+      18      33
+      19      33
+      1d      35
+      1e      36
+      1f      36
+      20      36
+      21      36
+      22      36
+      25      39
+   }
+
+   method 'test2 ()V' {
+      0      43
+      1      43
+      2      43
+      3      48
+      4      48
+      5      48
+      6      48
+      7      48
+      8      48
+      9      48
+      a      49
+      b      50
+      f      52
+      10      53
+      11      53
+      12      53
+      13      53
+      14      53
+      15      53
+      16      53
+      1a      55
+      1b      56
+      1c      56
+      1d      56
+      1f      56
+      20      56
+      21      56
+      22      56
+      25      59
    }
 }
 
 Lines mapping:
-5 <-> 5
-8 <-> 8
-9 <-> 9
-10 <-> 10
-12 <-> 11
-13 <-> 12
-15 <-> 15
+7 <-> 8
+10 <-> 12
+11 <-> 13
+12 <-> 14
+14 <-> 16
+15 <-> 17
+17 <-> 20
+20 <-> 24
+23 <-> 29
+24 <-> 30
+25 <-> 31
+27 <-> 33
+28 <-> 34
+29 <-> 36
+30 <-> 37
+32 <-> 40
+35 <-> 44
+38 <-> 49
+39 <-> 50
+40 <-> 51
+42 <-> 53
+43 <-> 54
+44 <-> 56
+45 <-> 57
+47 <-> 60
 Not mapped:
-14
+16
+31
+46

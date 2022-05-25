@@ -64,6 +64,18 @@ public final class CatchStatement extends Statement {
     }
   }
 
+  public CatchStatement(Statement tryStat, Statement catchStat, List<String> exec, VarExprent var) {
+    this();
+
+    this.first = tryStat;
+
+    this.stats.addWithKey(tryStat, tryStat.id);
+    this.stats.addWithKey(catchStat, catchStat.id);
+
+    this.exctstrings.add(new ArrayList<>(exec));
+    this.vars.add(var);
+  }
+
   // *****************************************************************************
   // public methods
   // *****************************************************************************

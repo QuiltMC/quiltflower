@@ -279,6 +279,11 @@ public class MethodProcessorRunnable implements Runnable {
         }
       }
 
+      if (TryHelper.splitTryWithSameCatch(root)) {
+        decompileRecord.add("SplitDuplicateTry", root);
+        continue;
+      }
+
       if (TryHelper.enhanceTryStats(root, cl)) {
         decompileRecord.add("EnhanceTry", root);
         continue;
