@@ -259,7 +259,7 @@ public class TestTryReturn {
             return;// 195
          } catch (Exception var16) {// 186
          } finally {
-            System.out.println(var4);// 190
+            System.out.println(var15);// 190
          }
       } finally {
          System.out.println(var3);// 194
@@ -623,9 +623,6 @@ class 'pkg/TestTryReturn' {
       36      266
       37      261
       38      261
-      39      261
-      3a      261
-      3b      261
       3c      261
       4a      258
       4d      264

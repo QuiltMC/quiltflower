@@ -488,26 +488,6 @@ public abstract class Statement implements IMatchable {
     return false;
   }
 
-  public boolean containsStatementById(int statId) {
-    return this.id == statId || containsStatementStrictById(statId);
-  }
-
-  public boolean containsStatementStrictById(int statId) {
-    for (Statement stat : stats) {
-      if (stat.id == statId) {
-        return true;
-      }
-    }
-
-    for (Statement st : stats) {
-      if (st.containsStatementStrictById(statId)) {
-        return true;
-      }
-    }
-
-    return false;
-  }
-
   public TextBuffer toJava() {
     return toJava(0);
   }

@@ -198,17 +198,6 @@ public final class SwitchStatement extends Statement {
     return buf;
   }
 
-  // Needed for flatten statements
-  public Statement findCaseBranchContaining(int id) {
-    for (Statement st : this.caseStatements) {
-      if (st.containsStatementById(id)) {
-        return st;
-      }
-    }
-
-    return null;
-  }
-
   @Override
   public void initExprents() {
     SwitchHeadExprent swexpr = (SwitchHeadExprent)first.getExprents().remove(first.getExprents().size() - 1);

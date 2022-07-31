@@ -145,10 +145,8 @@ public class ClassWrapper {
           DotExporter.errorToDotFile(rootStat, mt, "fail");
 
           try {
-            FlattenStatementsHelper flatten = new FlattenStatementsHelper();
-            DotExporter.errorToDotFile(flatten.buildDirectGraph(rootStat), mt, "failDigraph");
-          } catch (Exception e) {
-            // ignore
+            DotExporter.errorToDotFile(new FlattenStatementsHelper().buildDirectGraph(rootStat), mt, "failDGraph");
+          } catch (Exception ignored) {
           }
         }
 
